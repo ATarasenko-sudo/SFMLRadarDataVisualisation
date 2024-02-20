@@ -1,3 +1,6 @@
+//https://github.com/buresu/DBSCAN - origin dbscan
+
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -26,7 +29,7 @@ void csvReader(std::string filename, std::vector<std::vector<std::string>>& data
 void identifyTimestamp(std::vector<std::string>& index, std::vector<std::vector<std::string>>& data);
 
 //функциям визуализации
-void DataVisualization(std::vector<std::string>& index, std::vector<std::vector<std::string>>& data, sf::Font font,sf::RenderWindow& window, std::vector<sf::Vector2f>& points, std::vector<Point>& ClusterPts);
+void DataVisualization(std::vector<std::string>& index, std::vector<std::vector<std::string>>& data,std::vector<std::vector<std::string>>& dataObj, sf::Font font,sf::RenderWindow& window, std::vector<sf::Vector2f>& points,std::vector<sf::Vector2f>& Objpoints, std::vector<Point>& ClusterPts);
 //oid DataVisualization(std::vector<std::string>& index,std::vector<std::vector<std::string>>& data, sf::Font font,sf::RenderWindow& window, std::vector<sf::Vector2f>& points);
 
 
@@ -40,6 +43,7 @@ int main() {
 
     // Создание вектора, содержащего наборы точек
     std::vector<sf::Vector2f> points;
+    std::vector<sf::Vector2f> Objpoints;
     //std::vector<sf::Vector2f> SfmlClusterPoints;
 
 
@@ -57,13 +61,19 @@ int main() {
 
     // Имя файла CSV
     std::string filename = "data/outPointSorted.csv";
+    std::string filenameObj = "data/outObjSorted.csv";
+
+
     std::vector<std::vector<std::string>> data;
+    std::vector<std::vector<std::string>> dataObj;
 
     csvReader(filename, data);
+    csvReader(filenameObj, dataObj);
+
     identifyTimestamp(identify,data);
 
 
-    DataVisualization(identify,data, font,window,points,ClusteredPts);
+    DataVisualization(identify,data,dataObj, font,window,points,Objpoints,ClusteredPts);
 
 
 }
@@ -100,7 +110,7 @@ void csvReader(std::string filename, std::vector<std::vector<std::string>>& data
     file.close();
 }
 
-void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<std::string>>& data, sf::Font font,sf::RenderWindow& window, std::vector<sf::Vector2f>& points, std::vector<Point>& ClusterPts)
+void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<std::string>>& data,std::vector<std::vector<std::string>>& dataObj, sf::Font font,sf::RenderWindow& window, std::vector<sf::Vector2f>& points,std::vector<sf::Vector2f>& Objpoints,  std::vector<Point>& ClusterPts)
 {
     //std::vector<Point> uniqueClusterPoints;
     //std::unordered_set<int> uniqueClusters;
@@ -117,6 +127,8 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
             
             points.clear();
             ClusterPts.clear();
+            Objpoints.clear();
+
 
 
             onePointPerCluster.clear();
@@ -154,7 +166,18 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
 
             }
 
+            for (const auto& rowObj : dataObj)
+            {
+                if (identify == rowObj[2])
+                {  
+                    
+                    Objpoints.push_back(sf::Vector2f(std::stof(rowObj[4])/0.5*100+300, std::stof(rowObj[3])/10*400)); //нужно будет дописать функцию трансформации , пока данные нормированны относительно разрешения экрана
+          
+                }
+                
 
+            }
+            std::cout<<Objpoints.size()<<std::endl;
             int num = dbscan(ClusterPts, labels, 20.0, 1);
 
             // Итерируем по вектору labels и clusters
@@ -202,6 +225,15 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
             for (auto& plot : points) {
                 circle.setPosition(plot.x, plot.y); // установка позиции точки
                 window.draw(circle);
+            
+            }
+
+            sf::CircleShape circleObj(5.0f); // радиус круга (точки)
+            circleObj.setFillColor(sf::Color::Yellow); // цвет точек
+
+            for (auto& plotObj : Objpoints) {
+                circleObj.setPosition(plotObj.x, plotObj.y); // установка позиции точки
+                window.draw(circleObj);
             
             }
 
