@@ -5,33 +5,19 @@
 #include <string>
 #include <unordered_set>
 #include <SFML/Graphics.hpp>
+#include <set>
 
 
 #include <unistd.h>
 
+#include "dbscan.h"
 using namespace std;
 #define MINIMUM_POINTS 1    // minimum number of cluster
 #define EPSILON (50)  // distance for clustering, metre^2
 
 
-struct Point {
-    double x, y;     // coordinates
-    int cluster;     // no default cluster
-    double minDist;  // default infinite distance to nearest cluster
-
-    Point() : x(0.0), y(0.0), cluster(-1), minDist(__DBL_MAX__) {}
-    Point(double x, double y) : x(x), y(y), cluster(-1), minDist(__DBL_MAX__) {}
-
-    /**
-     * Computes the (square) euclidean distance between this point and another
-     */
-    double distance(Point p) {
-        return (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
-    }
-};
 
 
-void kMeansClustering(vector<Point>* points, int epochs, int k); 
 
 //функция чтения csv
 void csvReader(std::string filename, std::vector<std::vector<std::string>>& data);
@@ -116,9 +102,14 @@ void csvReader(std::string filename, std::vector<std::vector<std::string>>& data
 
 void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<std::string>>& data, sf::Font font,sf::RenderWindow& window, std::vector<sf::Vector2f>& points, std::vector<Point>& ClusterPts)
 {
-    std::vector<Point> uniqueClusterPoints;
-    std::unordered_set<int> uniqueClusters;
-    
+    //std::vector<Point> uniqueClusterPoints;
+    //std::unordered_set<int> uniqueClusters;
+        // Создаем вектор, в котором будут по одной точке из каждого кластера
+    std::vector<Point> onePointPerCluster;
+
+    // Создаем множество для отслеживания уникальных меток кластеров
+    std::set<int> uniqueLabels;
+    vector<int> labels;
         while (window.isOpen())
     {
 
@@ -126,8 +117,13 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
             
             points.clear();
             ClusterPts.clear();
-            uniqueClusters.clear();
-            uniqueClusterPoints.clear();
+
+
+            onePointPerCluster.clear();
+            uniqueLabels.clear();
+            labels.clear();
+            //uniqueClusters.clear();
+            //uniqueClusterPoints.clear();
             //SfmlClusterPoints.clear();
 
 
@@ -157,9 +153,25 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
                 
 
             }
-            kMeansClustering(&ClusterPts, 1, 10);
-            // Вектор для хранения одной точки из каждого кластера
 
+
+            int num = dbscan(ClusterPts, labels, 20.0, 1);
+
+            // Итерируем по вектору labels и clusters
+            for (std::size_t i = 0; i < labels.size(); ++i) {
+                int label = labels[i];
+        
+                // Проверяем, встречается ли текущая метка кластера в уникальных метках
+                if (uniqueLabels.find(label) == uniqueLabels.end()) {
+                    // Если не встречается, добавляем точку в вектор onePointPerCluster
+                    onePointPerCluster.push_back(ClusterPts[i]);
+            
+                    // Добавляем текущую метку кластера в уникальные метки
+                    uniqueLabels.insert(label);
+        }
+    }
+            // Вектор для хранения одной точки из каждого кластера
+/*
             // Проходим по всем точкам
         for (const auto& point : ClusterPts) {
             // Если кластер еще не добавлен в uniqueClusters, добавляем точку в uniqueClusterPoints
@@ -168,7 +180,7 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
                 uniqueClusterPoints.push_back(point);
             }
     }
-
+*/
 
 
 
@@ -198,7 +210,7 @@ void DataVisualization(std::vector<std::string>& index,std::vector<std::vector<s
         sf::CircleShape Circle(10.0f); // радиус круга (точки)
         Circle.setFillColor(sf::Color::Green); // цвет точек
 
-        for (auto& plt : uniqueClusterPoints) {
+        for (auto& plt : onePointPerCluster) {
 
                 Circle.setPosition(plt.y, plt.x); // установка позиции точки
                 window.draw(Circle);
@@ -274,74 +286,3 @@ void identifyTimestamp(std::vector<std::string>& index, std::vector<std::vector<
     index.erase(last, index.end()); // Удаляем "лишние" элементы после unique
 }
 
-
-void kMeansClustering(vector<Point>* points, int epochs, int k) {
-    int n = points->size();
-
-    // Randomly initialise centroids
-    // The index of the centroid within the centroids vector
-    // represents the cluster label.
-    vector<Point> centroids;
-    srand(time(0));
-    for (int i = 0; i < k; ++i) {
-        centroids.push_back(points->at(rand() % n));
-    }
-
-    for (int i = 0; i < epochs; ++i) {
-        // For each centroid, compute distance from centroid to each point
-        // and update point's cluster if necessary
-        for (vector<Point>::iterator c = begin(centroids); c != end(centroids);
-             ++c) {
-            int clusterId = c - begin(centroids);
-
-            for (vector<Point>::iterator it = points->begin();
-                 it != points->end(); ++it) {
-                Point p = *it;
-                double dist = c->distance(p);
-                if (dist < p.minDist) {
-                    p.minDist = dist;
-                    p.cluster = clusterId;
-                }
-                *it = p;
-            }
-        }
-
-        // Create vectors to keep track of data needed to compute means
-        vector<int> nPoints;
-        vector<double> sumX, sumY;
-        for (int j = 0; j < k; ++j) {
-            nPoints.push_back(0);
-            sumX.push_back(0.0);
-            sumY.push_back(0.0);
-        }
-
-        // Iterate over points to append data to centroids
-        for (vector<Point>::iterator it = points->begin(); it != points->end();
-             ++it) {
-            int clusterId = it->cluster;
-            nPoints[clusterId] += 1;
-            sumX[clusterId] += it->x;
-            sumY[clusterId] += it->y;
-
-            it->minDist = __DBL_MAX__;  // reset distance
-        }
-        // Compute the new centroids
-        for (vector<Point>::iterator c = begin(centroids); c != end(centroids);
-             ++c) {
-            int clusterId = c - begin(centroids);
-            c->x = sumX[clusterId] / nPoints[clusterId];
-            c->y = sumY[clusterId] / nPoints[clusterId];
-        }
-    }
-
-    // Write to csv
-    ofstream myfile;
-    myfile.open("output.csv");
-    myfile << "x,y,c" << endl;
-
-    for (vector<Point>::iterator it = points->begin(); it != points->end();
-         ++it) {
-        myfile << it->x << "," << it->y << "," << it->cluster << endl;
-    }
-    myfile.close();
-}
